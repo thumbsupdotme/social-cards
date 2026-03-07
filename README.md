@@ -2,12 +2,9 @@
 
 Hugo shortcodes for embedding social posts from **Bluesky**, **Mastodon**, and **Farcaster** — rendered at build time as static HTML.
 
-<!-- Screenshots: replace these with actual images before publishing -->
-<!--
 ![Bluesky card](docs/img/bluesky.png)
 ![Mastodon card](docs/img/mastodon.png)
 ![Farcaster card](docs/img/farcaster.png)
--->
 
 Because the API calls happen during `hugo build` (not in the visitor's browser), your visitors never make requests to Bluesky, Mastodon, or Neynar servers. Avatars, post images, and link preview thumbnails are downloaded at build time and served from your own domain — visitors never contact platform CDNs either. The page loads with fully static HTML.
 
