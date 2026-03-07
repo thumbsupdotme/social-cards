@@ -9,7 +9,7 @@ Hugo shortcodes for embedding social posts from **Bluesky**, **Mastodon**, and *
 ![Farcaster card](docs/img/farcaster.png)
 -->
 
-Because the API calls happen during `hugo build` (not in the visitor's browser), your visitors never make requests to Bluesky, Mastodon, or Neynar servers. The page loads with fully static HTML. The only third-party requests visitors make are to load avatars and images from each platform's CDN, which is unavoidable without self-hosting media.
+Because the API calls happen during `hugo build` (not in the visitor's browser), your visitors never make requests to Bluesky, Mastodon, or Neynar servers. Avatars, post images, and link preview thumbnails are downloaded at build time and served from your own domain — visitors never contact platform CDNs either. The page loads with fully static HTML.
 
 No tracking scripts, cookies, analytics, or JavaScript required.
 
@@ -123,10 +123,11 @@ For dark mode, override inside your dark selector:
 ## Privacy
 
 - API calls happen at **build time** — your visitors never contact Bluesky, Mastodon, or Neynar
+- Avatars, post images, and link preview thumbnails are fetched at build time via `resources.GetRemote` and served from your own domain — visitors never contact platform CDNs
+- Images are converted to WebP and avatars resized to 2× their display size for retina screens
 - No JavaScript is required for the cards themselves
 - No cookies, localStorage, analytics, or tracking scripts
 - Farcaster API key is a server-side env var and never appears in output HTML
-- Visitor browsers will load avatars and images from each platform's CDN (standard `<img>` tags — same as any embedded image)
 
 ---
 

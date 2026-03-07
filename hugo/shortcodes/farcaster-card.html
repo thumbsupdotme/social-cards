@@ -8,8 +8,9 @@
   - Add social-cards.css or define --sc-* CSS variables in your theme
   - Include social-cards-timestamp.html partial for local time conversion
 
-  Privacy: Only calls api.neynar.com — no tracking, no third-party scripts.
-  API key is read from env var, never embedded in output HTML.
+  Privacy: API calls happen at build time only. Avatar, channel icons, and post
+  images are downloaded and served from your own domain — visitors never contact
+  Farcaster or Neynar CDNs. API key is read from env var, never in output HTML.
 */ -}}
 {{- $url := .Get 0 -}}
 {{- $apiKey := os.Getenv "NEYNAR_API_KEY" -}}
@@ -24,15 +25,32 @@
 {{- $author := $cast.author -}}
 {{- $publishedAt := time $cast.timestamp -}}
 
+{{- /* Cache avatar at build time — 2× for retina, converted to WebP */ -}}
+{{- $avatarSrc := $author.pfp_url -}}
+{{- with resources.GetRemote $author.pfp_url -}}
+  {{- with .Resize "80x80 q85 webp" -}}
+    {{- $avatarSrc = .RelPermalink -}}
+  {{- end -}}
+{{- end -}}
+
 <div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
     <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-      <img src="{{ $author.pfp_url }}" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
+      <img src="{{ $avatarSrc }}" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
       <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0;">
         <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem; white-space: nowrap;">{{ $author.display_name }}</span>
         {{- with $cast.channel -}}
+        {{- $channelName := .name -}}
+        {{- $channelIcon := .image_url -}}
+        {{- with .image_url -}}
+          {{- with resources.GetRemote . -}}
+            {{- with .Resize "32x32 q85 webp" -}}
+              {{- $channelIcon = .RelPermalink -}}
+            {{- end -}}
+          {{- end -}}
+        {{- end -}}
         <span style="color: var(--sc-text-muted); font-size: 0.85rem;">in</span>
-        <span style="display: inline-flex; align-items: center; gap: 4px; background: var(--sc-divider); border-radius: 999px; padding: 2px 8px 2px 4px; font-size: 0.85rem; font-weight: 600; color: var(--sc-text-secondary); white-space: nowrap;">{{- with .image_url -}}<img src="{{ . }}" style="width: 16px; height: 16px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />{{- end -}}{{ .name }}</span>
+        <span style="display: inline-flex; align-items: center; gap: 4px; background: var(--sc-divider); border-radius: 999px; padding: 2px 8px 2px 4px; font-size: 0.85rem; font-weight: 600; color: var(--sc-text-secondary); white-space: nowrap;">{{- if $channelIcon -}}<img src="{{ $channelIcon }}" style="width: 16px; height: 16px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />{{- end -}}{{ $channelName }}</span>
         {{- end -}}
       </div>
     </div>
@@ -59,7 +77,13 @@
   {{- $imgCount := len $images -}}
   <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 16px; overflow: hidden;">
     {{- range $images -}}
-    <img src="{{ .url }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+    {{- $imgSrc := .url -}}
+    {{- with resources.GetRemote .url -}}
+      {{- with .Process "q85 webp" -}}
+        {{- $imgSrc = .RelPermalink -}}
+      {{- end -}}
+    {{- end -}}
+    <img src="{{ $imgSrc }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
     {{- end -}}
   </div>
   {{- end -}}
@@ -77,7 +101,13 @@
     {{- $embedUrl := $.url | default .ogUrl -}}
   <a href="{{ $embedUrl }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
     {{- with .ogImage -}}{{- with index . 0 -}}
-    <img src="{{ .url }}" alt="" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- $ogImgSrc := .url -}}
+    {{- with resources.GetRemote .url -}}
+      {{- with .Process "q85 webp" -}}
+        {{- $ogImgSrc = .RelPermalink -}}
+      {{- end -}}
+    {{- end -}}
+    <img src="{{ $ogImgSrc }}" alt="" style="width: 100%; height: 180px; object-fit: cover; display: block;">
     {{- end -}}{{- end -}}
     <div style="padding: 10px 14px;">
       <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .ogTitle }}</div>

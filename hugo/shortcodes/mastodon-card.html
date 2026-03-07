@@ -8,7 +8,8 @@
   - Add social-cards.css or define --sc-* CSS variables in your theme
   - Include social-cards-timestamp.html partial for local time conversion
 
-  Privacy: Only calls the originating instance API — no tracking, no third-party scripts.
+  Privacy: API calls happen at build time only. Avatar and post images are
+  downloaded and served from your own domain — visitors never contact the instance CDN.
 */ -}}
 {{- $url := .Get 0 -}}
 {{- $parsed := urls.Parse $url -}}
@@ -21,10 +22,18 @@
 {{- $author := $json.account -}}
 {{- $publishedAt := time $json.created_at -}}
 
+{{- /* Cache avatar at build time — 2× for retina, converted to WebP */ -}}
+{{- $avatarSrc := $author.avatar -}}
+{{- with resources.GetRemote $author.avatar -}}
+  {{- with .Resize "88x88 q85 webp" -}}
+    {{- $avatarSrc = .RelPermalink -}}
+  {{- end -}}
+{{- end -}}
+
 <div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
   <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
     <div style="display: flex; align-items: center; gap: 12px;">
-      <img src="{{ $author.avatar }}" style="width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
+      <img src="{{ $avatarSrc }}" style="width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
       <div style="display: flex; flex-direction: column; line-height: 1.2;">
         <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem;">{{ $author.display_name }}</span>
         <span style="color: var(--sc-text-muted); font-size: 0.9rem;">@{{ $author.acct }}</span>
@@ -52,7 +61,13 @@
   <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 12px; overflow: hidden;">
     {{- range $json.media_attachments -}}
       {{- if eq .type "image" -}}
-      <img src="{{ .preview_url }}" alt="{{ .description }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+      {{- $imgSrc := .preview_url -}}
+      {{- with resources.GetRemote .preview_url -}}
+        {{- with .Process "q85 webp" -}}
+          {{- $imgSrc = .RelPermalink -}}
+        {{- end -}}
+      {{- end -}}
+      <img src="{{ $imgSrc }}" alt="{{ .description }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
       {{- end -}}
     {{- end -}}
   </div>
@@ -63,7 +78,13 @@
   {{- if or (eq .type "link") (eq .type "photo") (eq .type "video") -}}
   <a href="{{ .url }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
     {{- if .image -}}
-    <img src="{{ .image }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- $cardImgSrc := .image -}}
+    {{- with resources.GetRemote .image -}}
+      {{- with .Process "q85 webp" -}}
+        {{- $cardImgSrc = .RelPermalink -}}
+      {{- end -}}
+    {{- end -}}
+    <img src="{{ $cardImgSrc }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block;">
     {{- end -}}
     <div style="padding: 10px 14px;">
       <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .title }}</div>
