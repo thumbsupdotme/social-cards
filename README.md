@@ -170,6 +170,10 @@ social-cards/
 
 ---
 
+[![Tip in Crypto](https://tip.md/badge.svg)](https://tip.md/thumbsupdotme)
+
+---
+
 ## License
 
 MIT
