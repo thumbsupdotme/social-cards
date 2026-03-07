@@ -1,15 +1,3 @@
-{{- /*
-  Bluesky Social Card
-  Usage: {{</* bluesky-card "https://bsky.app/profile/handle/post/id" */>}}
-
-  Requirements:
-  - No API key needed (uses public Bluesky API)
-  - Add social-cards.css or define --sc-* CSS variables in your theme
-  - Include social-cards-timestamp.html partial for local time conversion
-
-  Privacy: API calls happen at build time only. Avatar and post images are
-  downloaded and served from your own domain — visitors never contact Bluesky's CDN.
-*/ -}}
 {{- $url := .Get 0 -}}
 {{- $apiUrl := printf "https://embed.bsky.app/oembed?url=%s" $url -}}
 {{- $oembed := resources.GetRemote $apiUrl | transform.Unmarshal -}}
@@ -20,9 +8,9 @@
 {{- $post := $data.thread.post -}}
 {{- $record := $post.record -}}
 {{- $author := $post.author -}}
+
 {{- $publishedAt := time $record.createdAt -}}
 
-{{- /* Cache avatar at build time — 2× for retina, converted to WebP */ -}}
 {{- $avatarSrc := $author.avatar -}}
 {{- with resources.GetRemote $author.avatar -}}
   {{- with .Resize "88x88 q85 webp" -}}
@@ -35,24 +23,35 @@
 {{- $cId := printf "sc-%s" (md5 $url) -}}
 {{- $dId := printf "sd-%s" (md5 $url) -}}
 
-<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative; overflow: hidden;">
+<div class="social-card-final cnt-undo" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--color-neso-deco2); border-radius: 12px; padding: 16px; background: var(--color-neso-bg2); color: var(--color-neso-fg2); font-family: var(--font-sans); position: relative; overflow: hidden;">
   <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
     <div style="display: flex; align-items: center; gap: 12px;">
       <img src="{{ $avatarSrc }}" style="width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
       <div style="display: flex; flex-direction: column; line-height: 1.2;">
-        <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem;">{{ $author.displayName }}</span>
-        <span style="color: var(--sc-text-muted); font-size: 0.9rem;">@{{ $author.handle }}</span>
+        <span style="font-weight: 700; color: var(--color-neso-fg1); font-size: 1rem;">{{ $author.displayName }}</span>
+        <span style="color: var(--color-neso-fg3); font-size: 0.9rem;">@{{ $author.handle }}</span>
       </div>
     </div>
-    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #0085ff; align-self: flex-start; margin-top: 2px; transition: transform 0.2s ease-in-out; display: flex; flex-shrink: 0;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+    <a href="{{ $url }}" target="_blank" style="color: #0085ff; align-self: flex-start; margin-top: 2px; transition: transform 0.2s ease-in-out; display: flex; flex-shrink: 0;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
       <svg width="28" height="28" viewBox="0 0 48 48" fill="currentColor" style="display: block;"><path d="M10.971 6.76c5.274 4.008 10.947 12.134 13.03 16.495 2.082-4.36 7.754-12.487 13.028-16.495C40.834 3.868 47 1.63 47 8.75c0 1.422-.805 11.946-1.278 13.654-1.642 5.94-7.625 7.455-12.947 6.538 9.303 1.603 11.67 6.912 6.559 12.221-9.707 10.083-13.952-2.53-15.04-5.761-.2-.593-.293-.87-.294-.634-.001-.236-.095.041-.294.634-1.088 3.231-5.332 15.845-15.04 5.761-5.11-5.309-2.744-10.618 6.56-12.22-5.323.916-11.307-.599-12.948-6.539C1.805 20.697 1 10.172 1 8.75c0-7.12 6.166-4.882 9.97-1.99h.001Z"/></svg>
     </a>
   </div>
 
-  <div style="font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: var(--sc-text);">
+  <div style="font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: var(--color-neso-fg1);">
     {{- /* Strip only trailing standalone hashtag blocks, keep inline hashtags */ -}}
     {{- $cleanText := $record.text | replaceRE `(\n{2,})(#[a-zA-Z0-9_]+[ \t]*\n?)+$` "" | strings.TrimRight " " -}}
-    {{ $cleanText | markdownify }}
+    {{- $bodyHtml := $cleanText | markdownify -}}
+    {{- $bodyHtml = $bodyHtml | replaceRE `(<a [^>]*>)https?://` "$1" -}}
+    {{- $bodyHtml = $bodyHtml | replaceRE `<p>` `<p style="margin:0 0 0.9em 0;">` -}}
+    {{- /* Linkify bare-domain URLs using facets (Bluesky stores URLs without scheme in text) */ -}}
+    {{- range $record.facets -}}
+      {{- range .features -}}
+        {{- if eq (index . "$type") "app.bsky.richtext.facet#link" -}}
+          {{- $bodyHtml = $bodyHtml | replaceRE `(<p[^>]*>)((?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}[^\s<]*)(</p>)` (printf `$1<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#0085ff;text-decoration:none;">$2</a>$3` .uri) -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+    {{ $bodyHtml | safeHTML }}
   </div>
 
   {{- if gt $imgCount 0 -}}
@@ -66,7 +65,7 @@
         {{- $imgSrc = .RelPermalink -}}
       {{- end -}}
     {{- end -}}
-    <img src="{{ $imgSrc }}" alt="{{ .alt }}" onclick="window.__scLb&&window.__scLb(this.src)" style="flex: 1 1 0%; min-width: 0; border-radius: 8px; display: block; cursor: pointer;{{ if gt $imgCount 1 }} height: 250px; object-fit: cover;{{ else }} height: auto; width: 100%;{{ end }}" loading="lazy">
+    <img src="{{ $imgSrc }}" alt="{{ .alt }}" onclick="window.__scLb&&window.__scLb(this.src)" style="flex: 1 1 0%; min-width: 0; border-radius: 8px; display: block; margin: 0 !important; cursor: pointer;{{ if gt $imgCount 1 }} height: 250px; object-fit: cover;{{ else }} height: auto; width: 100%;{{ end }}" loading="lazy">
     {{- end -}}
   </div>
   {{- else -}}
@@ -81,36 +80,36 @@
           {{- $imgSrc = .RelPermalink -}}
         {{- end -}}
       {{- end -}}
-      <img src="{{ $imgSrc }}" alt="{{ .alt }}" onclick="window.__scLb&&window.__scLb(this.src)" style="scroll-snap-align: start; flex-shrink: 0; width: 100%; height: 280px; object-fit: cover; border-radius: 8px; cursor: pointer; display: block;" loading="lazy">
+      <img src="{{ $imgSrc }}" alt="{{ .alt }}" onclick="window.__scLb&&window.__scLb(this.src)" style="scroll-snap-align: start; flex-shrink: 0; width: 100%; height: 280px; object-fit: cover; border-radius: 8px; cursor: pointer; display: block; margin: 0 !important;" loading="lazy">
       {{- end -}}
     </div>
     <div id="{{ $dId }}" style="display: flex; justify-content: center; gap: 6px; margin-top: 8px; margin-bottom: 12px;">
       {{- range $i, $_ := $post.embed.images -}}
-      <button onclick="(function(){var c=document.getElementById('{{ $cId }}');c.scrollTo({left:c.children[{{ $i }}].offsetLeft,behavior:'smooth'});})()" aria-label="Image {{ add $i 1 }}" style="width: 8px; height: 8px; border-radius: 50%; border: none; background: {{ if eq $i 0 }}var(--sc-text){{ else }}var(--sc-divider){{ end }}; cursor: pointer; padding: 0; transition: background 0.2s;"></button>
+      <button onclick="(function(){var c=document.getElementById('{{ $cId }}');c.scrollTo({left:c.children[{{ $i }}].offsetLeft,behavior:'smooth'});})()" aria-label="Image {{ add $i 1 }}" style="width: 8px; height: 8px; border-radius: 50%; border: none; background: {{ if eq $i 0 }}var(--color-neso-fg2){{ else }}var(--color-neso-deco2){{ end }}; cursor: pointer; padding: 0; transition: background 0.2s;"></button>
       {{- end -}}
     </div>
   </div>
-  <script>(function(){var c=document.getElementById('{{ $cId }}'),ds=document.getElementById('{{ $dId }}').querySelectorAll('button');c.addEventListener('scroll',function(){var i=Math.round(c.scrollLeft/c.offsetWidth);ds.forEach(function(d,j){d.style.background=j===i?'var(--sc-text)':'var(--sc-divider)';});},{passive:true});})()</script>
+  <script>(function(){var c=document.getElementById('{{ $cId }}'),ds=document.getElementById('{{ $dId }}').querySelectorAll('button');c.addEventListener('scroll',function(){var i=Math.round(c.scrollLeft/c.offsetWidth);ds.forEach(function(d,j){d.style.background=j===i?'var(--color-neso-fg2)':'var(--color-neso-deco2)';});},{passive:true});})()</script>
   {{- end -}}
   {{- end -}}
 
   {{- /* Link preview card — use original image URL, skip processing (CDN images can return 403) */ -}}
   {{- with $post.embed.external -}}
-  <a href="{{ .uri }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
+  <a href="{{ .uri }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--color-neso-deco2); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
     {{- if .thumb -}}
-    <img src="{{ .thumb }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    <img src="{{ .thumb }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block; margin: 0 !important;">
     {{- end -}}
     <div style="padding: 10px 14px;">
-      <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .title }}</div>
-      {{- if .description -}}<div style="font-size: 0.85rem; color: var(--sc-text-muted); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .description }}</div>{{- end -}}
-      <div style="font-size: 0.8rem; color: var(--sc-text-muted);">{{ (urls.Parse .uri).Host }}</div>
+      <div style="font-weight: 600; font-size: 0.95rem; color: var(--color-neso-fg1); margin-bottom: 3px;">{{ .title }}</div>
+      {{- if .description -}}<div style="font-size: 0.85rem; color: var(--color-neso-fg3); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .description }}</div>{{- end -}}
+      <div style="font-size: 0.8rem; color: var(--color-neso-fg3);">{{ (urls.Parse .uri).Host }}</div>
     </div>
   </a>
   {{- end -}}
 
-  <div style="border-top: 1px solid var(--sc-divider); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
-    <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--sc-text-muted); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
-    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #0085ff; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#33a1ff'" onmouseout="this.style.color='#0085ff'">View on Bluesky</a>
+  <div style="border-top: 1px solid var(--color-neso-deco3); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+    <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--color-neso-fg3); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
+    <a href="{{ $url }}" target="_blank" style="color: #0085ff; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#33a1ff'" onmouseout="this.style.color='#0085ff'">View on Bluesky</a>
   </div>
 </div>
 
