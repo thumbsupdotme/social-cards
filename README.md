@@ -6,6 +6,16 @@ Because the API calls happen during `hugo build` (not in the visitor's browser),
 
 No tracking scripts, cookies, analytics, or JavaScript required.
 
+## Features
+
+- **Clickable link previews** — URL embeds show an OG image, title, and description as a tappable card
+- **Expandable images** — clicking any post image opens a fullscreen lightbox
+- **Image carousels** — posts with 3 or more images display as a scroll-snap carousel with dot indicators
+- **Local timestamps** — post times are shown in the visitor's local timezone (falls back to UTC if the partial is not included)
+- **Clean post text** — trailing blocks of hashtags are automatically hidden; inline hashtags are preserved
+- **No interactions** — likes, reposts, and reply counts are intentionally not shown; the cards link directly to the original post for that context
+- **No video** — video embeds are silently omitted to avoid broken players or layout issues; only image and link embeds are shown
+
 ---
 
 ## Requirements
