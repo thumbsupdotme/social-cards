@@ -33,7 +33,20 @@
   {{- end -}}
 {{- end -}}
 
-<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
+{{- /* Collect image embeds */ -}}
+{{- $images := slice -}}
+{{- range $cast.embeds -}}
+  {{- $ct := "" -}}
+  {{- with .metadata -}}{{- with .content_type -}}{{- $ct = . -}}{{- end -}}{{- end -}}
+  {{- if strings.HasPrefix $ct "image/" -}}
+    {{- $images = $images | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- $imgCount := len $images -}}
+{{- $cId := printf "sc-%s" (md5 $url) -}}
+{{- $dId := printf "sd-%s" (md5 $url) -}}
+
+<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative; overflow: hidden;">
   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
     <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
       <img src="{{ $avatarSrc }}" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
@@ -60,21 +73,14 @@
   </div>
 
   <div style="font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: var(--sc-text);">
-    {{- $cleanText := $cast.text | replaceRE `#[a-zA-Z0-9_]+` "" | replaceRE `\s{2,}` " " | strings.TrimRight " " -}}
+    {{- /* Strip only trailing standalone hashtag blocks, keep inline hashtags */ -}}
+    {{- $cleanText := $cast.text | replaceRE `(\n{2,})(#[a-zA-Z0-9_]+[ \t]*\n?)+$` "" | strings.TrimRight " " -}}
     {{ $cleanText | replaceRE `\n` "<br>" | safeHTML }}
   </div>
 
-  {{- /* Separate image embeds from URL embeds */ -}}
-  {{- $images := slice -}}
-  {{- range $cast.embeds -}}
-    {{- $ct := "" -}}
-    {{- with .metadata -}}{{- with .content_type -}}{{- $ct = . -}}{{- end -}}{{- end -}}
-    {{- if strings.HasPrefix $ct "image/" -}}
-      {{- $images = $images | append . -}}
-    {{- end -}}
-  {{- end -}}
-  {{- if gt (len $images) 0 -}}
-  {{- $imgCount := len $images -}}
+  {{- if gt $imgCount 0 -}}
+  {{- if le $imgCount 2 -}}
+  {{- /* 1–2 images: flex row (2 images split 50/50, cropped) */ -}}
   <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 16px; overflow: hidden;">
     {{- range $images -}}
     {{- $imgSrc := .url -}}
@@ -83,12 +89,35 @@
         {{- $imgSrc = .RelPermalink -}}
       {{- end -}}
     {{- end -}}
-    <img src="{{ $imgSrc }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+    <img src="{{ $imgSrc }}" onclick="window.__scLb&&window.__scLb(this.src)" style="flex: 1 1 0%; min-width: 0; border-radius: 8px; display: block; cursor: pointer;{{ if gt $imgCount 1 }} height: 250px; object-fit: cover;{{ else }} height: auto; width: 100%;{{ end }}" loading="lazy">
     {{- end -}}
   </div>
+  {{- else -}}
+  {{- /* 3+ images: scroll-snap carousel */ -}}
+  <style>#{{ $cId }}::-webkit-scrollbar{display:none}</style>
+  <div style="margin: 8px 0 4px; overflow: hidden;">
+    <div id="{{ $cId }}" style="display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-radius: 8px;">
+      {{- range $images -}}
+      {{- $imgSrc := .url -}}
+      {{- with resources.GetRemote .url -}}
+        {{- with .Process "q85 webp" -}}
+          {{- $imgSrc = .RelPermalink -}}
+        {{- end -}}
+      {{- end -}}
+      <img src="{{ $imgSrc }}" onclick="window.__scLb&&window.__scLb(this.src)" style="scroll-snap-align: start; flex-shrink: 0; width: 100%; height: 280px; object-fit: cover; border-radius: 8px; cursor: pointer; display: block;" loading="lazy">
+      {{- end -}}
+    </div>
+    <div id="{{ $dId }}" style="display: flex; justify-content: center; gap: 6px; margin-top: 8px; margin-bottom: 12px;">
+      {{- range $i, $_ := $images -}}
+      <button onclick="(function(){var c=document.getElementById('{{ $cId }}');c.scrollTo({left:c.children[{{ $i }}].offsetLeft,behavior:'smooth'});})()" aria-label="Image {{ add $i 1 }}" style="width: 8px; height: 8px; border-radius: 50%; border: none; background: {{ if eq $i 0 }}var(--sc-text){{ else }}var(--sc-divider){{ end }}; cursor: pointer; padding: 0; transition: background 0.2s;"></button>
+      {{- end -}}
+    </div>
+  </div>
+  <script>(function(){var c=document.getElementById('{{ $cId }}'),ds=document.getElementById('{{ $dId }}').querySelectorAll('button');c.addEventListener('scroll',function(){var i=Math.round(c.scrollLeft/c.offsetWidth);ds.forEach(function(d,j){d.style.background=j===i?'var(--sc-text)':'var(--sc-divider)';});},{passive:true});})()</script>
+  {{- end -}}
   {{- end -}}
 
-  {{- /* First URL embed with OpenGraph data */ -}}
+  {{- /* Link preview card — use original image URL, skip processing (OG image CDNs can return 403) */ -}}
   {{- $ogDone := false -}}
   {{- range $cast.embeds -}}
     {{- if not $ogDone -}}
@@ -100,15 +129,9 @@
     {{- $ogDone = true -}}
     {{- $embedUrl := $.url | default .ogUrl -}}
   <a href="{{ $embedUrl }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
-    {{- with .ogImage -}}{{- with index . 0 -}}
-    {{- $ogImgSrc := .url -}}
-    {{- with resources.GetRemote .url -}}
-      {{- with .Process "q85 webp" -}}
-        {{- $ogImgSrc = .RelPermalink -}}
-      {{- end -}}
-    {{- end -}}
-    <img src="{{ $ogImgSrc }}" alt="" style="width: 100%; height: 180px; object-fit: cover; display: block;">
-    {{- end -}}{{- end -}}
+    {{- with .ogImage -}}{{- with index . 0 -}}{{- if .url -}}
+    <img src="{{ .url }}" alt="" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- end -}}{{- end -}}{{- end -}}
     <div style="padding: 10px 14px;">
       <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .ogTitle }}</div>
       {{- if .ogDescription -}}<div style="font-size: 0.85rem; color: var(--sc-text-muted); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .ogDescription }}</div>{{- end -}}
@@ -125,4 +148,20 @@
     <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #6A3CFF; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#8C66FF'" onmouseout="this.style.color='#6A3CFF'">View on Farcaster</a>
   </div>
 </div>
+
+{{- /* Shared lightbox — injected once per page via DOM API (no innerHTML) */ -}}
+<script>
+if (!window.__scLb) {
+  var _lbImg = document.createElement('img');
+  _lbImg.style.cssText = 'max-width:92vw;max-height:92vh;object-fit:contain;border-radius:8px;cursor:default;';
+  _lbImg.addEventListener('click', function(e) { e.stopPropagation(); });
+  var _lbOv = document.createElement('div');
+  _lbOv.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.88);cursor:zoom-out;align-items:center;justify-content:center;';
+  _lbOv.appendChild(_lbImg);
+  _lbOv.addEventListener('click', function() { _lbOv.style.display = 'none'; document.body.style.overflow = ''; });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { _lbOv.style.display = 'none'; document.body.style.overflow = ''; } });
+  document.body.appendChild(_lbOv);
+  window.__scLb = function(src) { _lbImg.src = src; _lbOv.style.display = 'flex'; document.body.style.overflow = 'hidden'; };
+}
+</script>
 {{- end -}}
