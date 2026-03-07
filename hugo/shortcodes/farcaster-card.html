@@ -1,0 +1,98 @@
+{{- /*
+  Farcaster Social Card
+  Usage: {{</* farcaster-card "https://farcaster.xyz/user/0xhash" */>}}
+
+  Requirements:
+  - NEYNAR_API_KEY environment variable (get one at neynar.com)
+  - Falls back to plain link if API key is not set
+  - Add social-cards.css or define --sc-* CSS variables in your theme
+  - Include social-cards-timestamp.html partial for local time conversion
+
+  Privacy: Only calls api.neynar.com — no tracking, no third-party scripts.
+  API key is read from env var, never embedded in output HTML.
+*/ -}}
+{{- $url := .Get 0 -}}
+{{- $apiKey := os.Getenv "NEYNAR_API_KEY" -}}
+{{- if not $apiKey -}}
+  {{- warnf "farcaster-card: NEYNAR_API_KEY not set, skipping embed for %s" $url -}}
+  <p><a href="{{ $url }}" target="_blank" rel="noopener noreferrer">{{ $url }}</a></p>
+{{- else -}}
+{{- $apiUrl := printf "https://api.neynar.com/v2/farcaster/cast?identifier=%s&type=url" $url -}}
+{{- $opts := dict "method" "get" "headers" (dict "x-api-key" $apiKey "accept" "application/json") -}}
+{{- $data := resources.GetRemote $apiUrl $opts | transform.Unmarshal -}}
+{{- $cast := $data.cast -}}
+{{- $author := $cast.author -}}
+{{- $publishedAt := time $cast.timestamp -}}
+
+<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+      <img src="{{ $author.pfp_url }}" style="width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0;">
+        <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem; white-space: nowrap;">{{ $author.display_name }}</span>
+        {{- with $cast.channel -}}
+        <span style="color: var(--sc-text-muted); font-size: 0.85rem;">in</span>
+        <span style="display: inline-flex; align-items: center; gap: 4px; background: var(--sc-divider); border-radius: 999px; padding: 2px 8px 2px 4px; font-size: 0.85rem; font-weight: 600; color: var(--sc-text-secondary); white-space: nowrap;">{{- with .image_url -}}<img src="{{ . }}" style="width: 16px; height: 16px; border-radius: 50%; object-fit: cover; flex-shrink: 0;" />{{- end -}}{{ .name }}</span>
+        {{- end -}}
+      </div>
+    </div>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #6A3CFF; align-self: flex-start; margin-top: 2px; transition: transform 0.2s; display: flex; flex-shrink: 0; width: 28px; height: 28px;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+      <svg width="28" height="28" viewBox="0 0 200 175" fill="currentColor" xmlns="http://www.w3.org/2000/svg" style="display: block;"><path d="M200 0V23.6302H176.288V47.2404H183.553V47.2483H200V175H160.281L160.256 174.883L139.989 79.3143C138.057 70.2043 133 61.9616 125.751 56.0995C118.502 50.2376 109.371 47.0108 100.041 47.0108H99.9613C90.631 47.0108 81.5 50.2376 74.251 56.0995C67.0023 61.9616 61.9453 70.2073 60.013 79.3143L39.7223 175H0V47.2453H16.4475V47.2404H23.7114V23.6302H0V0H200Z"/></svg>
+    </a>
+  </div>
+
+  <div style="font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: var(--sc-text);">
+    {{- $cleanText := $cast.text | replaceRE `#[a-zA-Z0-9_]+` "" | replaceRE `\s{2,}` " " | strings.TrimRight " " -}}
+    {{ $cleanText | replaceRE `\n` "<br>" | safeHTML }}
+  </div>
+
+  {{- /* Separate image embeds from URL embeds */ -}}
+  {{- $images := slice -}}
+  {{- range $cast.embeds -}}
+    {{- $ct := "" -}}
+    {{- with .metadata -}}{{- with .content_type -}}{{- $ct = . -}}{{- end -}}{{- end -}}
+    {{- if strings.HasPrefix $ct "image/" -}}
+      {{- $images = $images | append . -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt (len $images) 0 -}}
+  {{- $imgCount := len $images -}}
+  <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 16px; overflow: hidden;">
+    {{- range $images -}}
+    <img src="{{ .url }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+    {{- end -}}
+  </div>
+  {{- end -}}
+
+  {{- /* First URL embed with OpenGraph data */ -}}
+  {{- $ogDone := false -}}
+  {{- range $cast.embeds -}}
+    {{- if not $ogDone -}}
+    {{- $ct := "" -}}
+    {{- with .metadata -}}{{- with .content_type -}}{{- $ct = . -}}{{- end -}}{{- end -}}
+    {{- if and (not (strings.HasPrefix $ct "image/")) .url .metadata -}}
+    {{- with .metadata.html -}}
+    {{- if .ogTitle -}}
+    {{- $ogDone = true -}}
+    {{- $embedUrl := $.url | default .ogUrl -}}
+  <a href="{{ $embedUrl }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
+    {{- with .ogImage -}}{{- with index . 0 -}}
+    <img src="{{ .url }}" alt="" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- end -}}{{- end -}}
+    <div style="padding: 10px 14px;">
+      <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .ogTitle }}</div>
+      {{- if .ogDescription -}}<div style="font-size: 0.85rem; color: var(--sc-text-muted); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .ogDescription }}</div>{{- end -}}
+    </div>
+  </a>
+    {{- end -}}
+    {{- end -}}
+    {{- end -}}
+    {{- end -}}
+  {{- end -}}
+
+  <div style="border-top: 1px solid var(--sc-divider); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+    <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--sc-text-muted); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #6A3CFF; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#8C66FF'" onmouseout="this.style.color='#6A3CFF'">View on Farcaster</a>
+  </div>
+</div>
+{{- end -}}

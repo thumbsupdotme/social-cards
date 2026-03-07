@@ -1,0 +1,81 @@
+{{- /*
+  Mastodon Social Card
+  Usage: {{</* mastodon-card "https://mastodon.social/@user/123456" */>}}
+
+  Requirements:
+  - No API key needed (uses public Mastodon instance API)
+  - Works with any Mastodon-compatible instance (Mastodon, Pleroma, Akkoma, etc.)
+  - Add social-cards.css or define --sc-* CSS variables in your theme
+  - Include social-cards-timestamp.html partial for local time conversion
+
+  Privacy: Only calls the originating instance API — no tracking, no third-party scripts.
+*/ -}}
+{{- $url := .Get 0 -}}
+{{- $parsed := urls.Parse $url -}}
+{{- $parts := split $parsed.Path "/" -}}
+{{- $id := index $parts (sub (len $parts) 1) -}}
+{{- $instance := printf "%s://%s" $parsed.Scheme $parsed.Host -}}
+{{- $apiUrl := printf "%s/api/v1/statuses/%s" $instance $id -}}
+{{- $data := resources.GetRemote $apiUrl -}}
+{{- $json := $data | transform.Unmarshal -}}
+{{- $author := $json.account -}}
+{{- $publishedAt := time $json.created_at -}}
+
+<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="{{ $author.avatar }}" style="width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
+      <div style="display: flex; flex-direction: column; line-height: 1.2;">
+        <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem;">{{ $author.display_name }}</span>
+        <span style="color: var(--sc-text-muted); font-size: 0.9rem;">@{{ $author.acct }}</span>
+      </div>
+    </div>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #6364ff; align-self: flex-start; margin-top: 2px; transition: transform 0.2s ease-in-out; display: flex; flex-shrink: 0;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+      <svg width="28" height="28" viewBox="0 0 79 75" fill="currentColor" style="display: block;"><path d="M63 45.3v-20c0-4.1-1-7.3-3.2-9.7-2.1-2.4-5-3.7-8.5-3.7-4.1 0-7.2 1.6-9.3 4.7l-2 3.3-2-3.3c-2-3.1-5.1-4.7-9.2-4.7-3.5 0-6.4 1.3-8.6 3.7-2.1 2.4-3.1 5.6-3.1 9.7v20h8V25.9c0-4.1 1.7-6.2 5.2-6.2 3.8 0 5.8 2.5 5.8 7.4V37.7H44V27.1c0-4.9 1.9-7.4 5.8-7.4 3.5 0 5.2 2.1 5.2 6.2V45.3h8ZM74.7 16.6c.6 6 .1 15.7.1 17.3 0 .5-.1 4.8-.1 5.3-.7 11.5-8 16-15.6 17.5-.1 0-.2 0-.3 0-4.9 1-10 1.2-14.9 1.4-1.2 0-2.4 0-3.6 0-4.8 0-9.7-.6-14.4-1.7-.1 0-.1 0-.1 0s-.1 0-.1 0 0 .1 0 .1 0 0 0 0c.1 1.6.4 3.1 1 4.5.6 1.7 2.9 5.7 11.4 5.7 5 0 9.9-.6 14.8-1.7 0 0 0 0 0 0 .1 0 .1 0 .1 0 0 .1 0 .1 0 .1.1 0 .1 0 .1.1v5.6s0 .1-.1.1c0 0 0 0 0 .1-1.6 1.1-3.7 1.7-5.6 2.3-.8.3-1.6.5-2.4.7-7.5 1.7-15.4 1.3-22.7-1.2-6.8-2.4-13.8-8.2-15.5-15.2-.9-3.8-1.6-7.6-1.9-11.5-.6-5.8-.6-11.7-.8-17.5C3.9 24.5 4 20 4.9 16 6.7 7.9 14.1 2.2 22.3 1c1.4-.2 4.1-1 16.5-1h.1C51.4 0 56.7.8 58.1 1c8.4 1.2 15.5 7.5 16.6 15.6Z"/></svg>
+    </a>
+  </div>
+
+  {{- $bodyText := $json.content -}}
+  {{- $bodyText = $bodyText | replaceRE `(<p>[\s]*(<a [^>]*class="mention hashtag"[^>]*>#<span>[^<]+</span></a>[\s]*)+</p>[\s]*)+$` "" -}}
+  {{- $bodyText = $bodyText | replaceRE `<a ` `<a style="text-decoration:none;" ` -}}
+  {{- $bodyText = $bodyText | replaceRE `<p>` `<p style="margin:0 0 0.9em 0;">` -}}
+  {{- $bodyText = $bodyText | replaceRE `<p [^>]+>[\s]*</p>` "" -}}
+
+  <div style="font-size: 1.05rem; line-height: 1.6; margin-bottom: 12px; color: var(--sc-text);">
+    {{ $bodyText | safeHTML }}
+  </div>
+
+  {{- if $json.media_attachments -}}
+  {{- $imgCount := 0 -}}
+  {{- range $json.media_attachments -}}{{- if eq .type "image" -}}{{- $imgCount = add $imgCount 1 -}}{{- end -}}{{- end -}}
+  {{- if gt $imgCount 0 -}}
+  <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 12px; overflow: hidden;">
+    {{- range $json.media_attachments -}}
+      {{- if eq .type "image" -}}
+      <img src="{{ .preview_url }}" alt="{{ .description }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+      {{- end -}}
+    {{- end -}}
+  </div>
+  {{- end -}}
+  {{- end -}}
+
+  {{- with $json.card -}}
+  {{- if or (eq .type "link") (eq .type "photo") (eq .type "video") -}}
+  <a href="{{ .url }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
+    {{- if .image -}}
+    <img src="{{ .image }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- end -}}
+    <div style="padding: 10px 14px;">
+      <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .title }}</div>
+      {{- if .description -}}<div style="font-size: 0.85rem; color: var(--sc-text-muted); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .description }}</div>{{- end -}}
+      <div style="font-size: 0.8rem; color: var(--sc-text-muted);">{{ (urls.Parse .url).Host }}</div>
+    </div>
+  </a>
+  {{- end -}}
+  {{- end -}}
+
+  <div style="border-top: 1px solid var(--sc-divider); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+    <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--sc-text-muted); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #6364ff; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#8A8BFF'" onmouseout="this.style.color='#6364ff'">View on Mastodon</a>
+  </div>
+</div>

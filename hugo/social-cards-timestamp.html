@@ -1,0 +1,27 @@
+{{- /*
+  Social Cards — Timestamp Conversion
+  Converts UTC timestamps to the viewer's local time.
+
+  Include once in your site, e.g. in a <head> or body partial:
+    {{ partial "social-cards-timestamp.html" . }}
+
+  Targets all elements with class "social-card-time" and a datetime attribute.
+*/ -}}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var els = document.querySelectorAll('.social-card-time');
+    for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var d = new Date(el.getAttribute('datetime'));
+        if (!isNaN(d)) {
+            el.textContent = d.toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        }
+    }
+});
+</script>

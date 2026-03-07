@@ -1,0 +1,69 @@
+{{- /*
+  Bluesky Social Card
+  Usage: {{</* bluesky-card "https://bsky.app/profile/handle/post/id" */>}}
+
+  Requirements:
+  - No API key needed (uses public Bluesky API)
+  - Add social-cards.css or define --sc-* CSS variables in your theme
+  - Include social-cards-timestamp.html partial for local time conversion
+
+  Privacy: Only calls public.api.bsky.app — no tracking, no third-party scripts.
+*/ -}}
+{{- $url := .Get 0 -}}
+{{- $apiUrl := printf "https://embed.bsky.app/oembed?url=%s" $url -}}
+{{- $oembed := resources.GetRemote $apiUrl | transform.Unmarshal -}}
+{{- $uriMatch := findRE `data-bluesky-uri="([^"]+)"` $oembed.html 1 -}}
+{{- $atUri := index (split (index $uriMatch 0) "\"") 1 -}}
+{{- $threadApi := printf "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread?uri=%s&depth=0" $atUri -}}
+{{- $data := resources.GetRemote $threadApi | transform.Unmarshal -}}
+{{- $post := $data.thread.post -}}
+{{- $record := $post.record -}}
+{{- $author := $post.author -}}
+{{- $publishedAt := time $record.createdAt -}}
+
+<div class="social-card" style="margin: 1.5rem auto; max-width: 550px; border: 1px solid var(--sc-border); border-radius: 12px; padding: 16px; background: var(--sc-bg); color: var(--sc-text-secondary); font-family: var(--sc-font); position: relative;">
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <img src="{{ $author.avatar }}" style="width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; object-fit: cover;" />
+      <div style="display: flex; flex-direction: column; line-height: 1.2;">
+        <span style="font-weight: 700; color: var(--sc-text); font-size: 1rem;">{{ $author.displayName }}</span>
+        <span style="color: var(--sc-text-muted); font-size: 0.9rem;">@{{ $author.handle }}</span>
+      </div>
+    </div>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #0085ff; align-self: flex-start; margin-top: 2px; transition: transform 0.2s ease-in-out; display: flex; flex-shrink: 0;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+      <svg width="28" height="28" viewBox="0 0 48 48" fill="currentColor" style="display: block;"><path d="M10.971 6.76c5.274 4.008 10.947 12.134 13.03 16.495 2.082-4.36 7.754-12.487 13.028-16.495C40.834 3.868 47 1.63 47 8.75c0 1.422-.805 11.946-1.278 13.654-1.642 5.94-7.625 7.455-12.947 6.538 9.303 1.603 11.67 6.912 6.559 12.221-9.707 10.083-13.952-2.53-15.04-5.761-.2-.593-.293-.87-.294-.634-.001-.236-.095.041-.294.634-1.088 3.231-5.332 15.845-15.04 5.761-5.11-5.309-2.744-10.618 6.56-12.22-5.323.916-11.307-.599-12.948-6.539C1.805 20.697 1 10.172 1 8.75c0-7.12 6.166-4.882 9.97-1.99h.001Z"/></svg>
+    </a>
+  </div>
+
+  <div style="font-size: 1.05rem; line-height: 1.5; margin-bottom: 12px; color: var(--sc-text);">
+    {{- $cleanText := $record.text | replaceRE `#[a-zA-Z0-9_]+` "" | replaceRE `\s{2,}` " " | strings.TrimRight " " -}}
+    {{ $cleanText | markdownify }}
+  </div>
+
+  {{- if $post.embed.images -}}
+  {{- $imgCount := len $post.embed.images -}}
+  <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 16px; overflow: hidden;">
+    {{- range $post.embed.images -}}
+    <img src="{{ .thumb }}" style="flex: 1; border-radius: 8px; display: block; {{ if gt $imgCount 1 }}height: 250px; object-fit: cover;{{ else }}height: auto; width: 100%;{{ end }}" loading="lazy">
+    {{- end -}}
+  </div>
+  {{- end -}}
+
+  {{- with $post.embed.external -}}
+  <a href="{{ .uri }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--sc-border); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
+    {{- if .thumb -}}
+    <img src="{{ .thumb }}" alt="{{ .title }}" style="width: 100%; height: 180px; object-fit: cover; display: block;">
+    {{- end -}}
+    <div style="padding: 10px 14px;">
+      <div style="font-weight: 600; font-size: 0.95rem; color: var(--sc-text); margin-bottom: 3px;">{{ .title }}</div>
+      {{- if .description -}}<div style="font-size: 0.85rem; color: var(--sc-text-muted); margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ .description }}</div>{{- end -}}
+      <div style="font-size: 0.8rem; color: var(--sc-text-muted);">{{ (urls.Parse .uri).Host }}</div>
+    </div>
+  </a>
+  {{- end -}}
+
+  <div style="border-top: 1px solid var(--sc-divider); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+    <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--sc-text-muted); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
+    <a href="{{ $url }}" target="_blank" rel="noopener noreferrer" style="color: #0085ff; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#33a1ff'" onmouseout="this.style.color='#0085ff'">View on Bluesky</a>
+  </div>
+</div>
