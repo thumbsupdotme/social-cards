@@ -107,6 +107,50 @@
   </a>
   {{- end -}}
 
+  {{- /* Quote post embed (app.bsky.embed.record#view) */ -}}
+  {{- with $post.embed -}}
+  {{- if eq (index . "$type") "app.bsky.embed.record#view" -}}
+  {{- $qr := .record -}}
+  {{- if eq (index $qr "$type") "app.bsky.embed.record#viewRecord" -}}
+  {{- $qAuthor := $qr.author -}}
+  {{- $qUriParts := split $qr.uri "/" -}}
+  {{- $qRkey := index $qUriParts 4 -}}
+  {{- $qUrl := printf "https://bsky.app/profile/%s/post/%s" $qAuthor.handle $qRkey -}}
+  {{- $qAvatarSrc := $qAuthor.avatar -}}
+  {{- with resources.GetRemote $qAuthor.avatar -}}
+    {{- with .Resize "80x80 q85 webp" -}}{{- $qAvatarSrc = .RelPermalink -}}{{- end -}}
+  {{- end -}}
+  <a href="{{ $qUrl }}" target="_blank" rel="noopener noreferrer" style="display: block; margin-top: 8px; margin-bottom: 16px; border: 1px solid var(--color-neso-deco2); border-radius: 10px; overflow: hidden; text-decoration: none; color: inherit;">
+    <div style="padding: 10px 12px 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <img src="{{ $qAvatarSrc }}" style="width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover; margin: 0 !important;">
+        <span style="font-weight: 700; color: var(--color-neso-fg1); font-size: 0.9rem;">{{ $qAuthor.displayName }}</span>
+        <span style="color: var(--color-neso-fg3); font-size: 0.85rem;">@{{ $qAuthor.handle }}</span>
+      </div>
+      {{- with $qr.value.text -}}
+      <div style="font-size: 0.9rem; color: var(--color-neso-fg2); line-height: 1.45; margin-bottom: 8px;">{{ . | replaceRE `\n` "<br>" | safeHTML }}</div>
+      {{- end -}}
+    </div>
+    {{- range $qr.embeds -}}
+    {{- $qEmbedType := index . "$type" -}}
+    {{- if eq $qEmbedType "app.bsky.embed.images#view" -}}
+    {{- with index .images 0 -}}
+    <img src="{{ .thumb }}" alt="{{ .alt }}" style="width: 100%; max-height: 220px; object-fit: cover; display: block; margin: 0 !important;">
+    {{- end -}}
+    {{- else if eq $qEmbedType "app.bsky.embed.video#view" -}}
+    <div style="position: relative;">
+      <img src="{{ .thumbnail }}" alt="{{ .alt }}" style="width: 100%; max-height: 220px; object-fit: cover; display: block; margin: 0 !important;">
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; background: rgba(0,0,0,0.65); border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" style="margin: 0 !important; display: block;"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+    {{- end -}}
+    {{- end -}}
+  </a>
+  {{- end -}}
+  {{- end -}}
+  {{- end -}}
+
   <div style="border-top: 1px solid var(--color-neso-deco3); padding-top: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
     <time class="social-card-time" datetime="{{ $publishedAt.Format "2006-01-02T15:04:05Z" }}" style="color: var(--color-neso-fg3); font-size: 0.9rem;">{{ $publishedAt.Format "Jan 2, 2006 at 3:04 PM UTC" }}</time>
     <a href="{{ $url }}" target="_blank" style="color: #0085ff; font-weight: 600; text-decoration: none; font-size: 0.9rem; transition: color 0.2s ease-in-out;" onmouseover="this.style.color='#33a1ff'" onmouseout="this.style.color='#0085ff'">View on Bluesky</a>
